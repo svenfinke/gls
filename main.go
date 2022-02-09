@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -29,10 +30,12 @@ type Options struct {
 	// 	--author               with -l, print the author of each file
 	Author bool `long:"author" description:"with -l, print the author of each file"`
 	// -b, --escape               print C-style escapes for nongraphic characters
-	Escape bool `short:"b" long:"escape" description:"print C-style escapes for nongraphic characters"`
+	Escape bool `short:"b" long:"escape" description:"NOT IMPLEMENTED print C-style escapes for nongraphic characters"`
 	// 	--block-size=SIZE      with -l, scale sizes by SIZE when printing them;
 	// 							 e.g., '--block-size=M'; see SIZE format below
+	BlockSize string `long:"block-size" description:"with -l, scale sizes by SIZE when printing them; e.g., '--block-size=M'; see SIZE format below"`
 	// -B, --ignore-backups       do not list implied entries ending with ~
+	IgnoreBackups bool `short:"B" long:"ignore-backups" description:"do not list implied entries ending with ~"`
 	// -c                         with -lt: sort by, and show, ctime (time of last
 	// 							 modification of file status information);
 	// 							 with -l: show ctime and sort by name;
@@ -71,6 +74,7 @@ type Options struct {
 	// -i, --inode                print the index number of each file
 	// -I, --ignore=PATTERN       do not list implied entries matching shell PATTERN
 	// -k, --kibibytes            default to 1024-byte blocks for disk usage;
+	Kibibytes bool `short:"k" long:"kibibytes" description:"default to 1024-byte blocks for disk usage"`
 	// 							 used only with -s and per directory totals
 	// -l                         use a long listing format
 	List bool `short:"l" description:"use a long listing format"`
@@ -135,6 +139,10 @@ func main() {
 		}
 	}
 
+	if options.Args.File == "" {
+		options.Args.File = "."
+	}
+
 	print(options)
 
 }
@@ -156,9 +164,14 @@ func print(options Options) {
 			return nil
 		}
 
+		if options.IgnoreBackups && strings.HasSuffix(info.Name(), "~") {
+			return nil
+		}
+
 		fileInfo, _ := info.Info()
-		if sizeMaxLength < len(strconv.FormatInt(fileInfo.Size(), 10)) {
-			sizeMaxLength = len(strconv.FormatInt(fileInfo.Size(), 10))
+		fileSize := formatFileSize(fileInfo.Size())
+		if sizeMaxLength < len(strconv.FormatInt(fileSize, 10)) {
+			sizeMaxLength = len(strconv.FormatInt(fileSize, 10))
 		}
 		files = append(files, info)
 		return err
@@ -185,13 +198,22 @@ func printList(file fs.DirEntry, fileSizeMaxLength int) {
 	stat := info.Sys().(*syscall.Stat_t)
 	fileUser, _ := user.LookupId(strconv.FormatUint(uint64(stat.Uid), 10))
 	fileGroup, _ := user.LookupGroupId(strconv.FormatUint(uint64(stat.Gid), 10))
+	fileSize := formatFileSize(info.Size())
+	filePermissions := info.Mode().Perm().String()
 
-	fmt.Printf("%s%s", info.Mode().Perm().String(), sep)
+	if info.IsDir() {
+		filePermissions = "d" + filePermissions[1:]
+	}
+
+	fmt.Printf("%s%s", filePermissions, sep)
 	fmt.Printf("%v%s", stat.Nlink, sep)
 	fmt.Printf("%v%s", fileUser.Username, sep) // Owner
 	fmt.Printf("%v%s", fileGroup.Name, sep)    // Group
+	if options.Author {
+		fmt.Printf("%v%s", fileUser.Username, sep) // "Author" - also seems faked in ls. It changes with the owner
+	}
 	// Generate Format String with maximal found length of size
-	fmt.Printf(fmt.Sprintf("%%%vd%%s", fileSizeMaxLength), info.Size(), sep)
+	fmt.Printf(fmt.Sprintf("%%%vd%%s%%s", fileSizeMaxLength), fileSize, options.BlockSize, sep)
 	fmt.Printf("%s%s", info.ModTime().Format("Jan"), sep)
 	fmt.Printf("%s%s", info.ModTime().Format("02"), sep)
 	fmt.Printf("%s%s", info.ModTime().Format("15:04"), sep)
@@ -206,4 +228,31 @@ func printColoredFilename(file fs.DirEntry) {
 		d = color.New(color.FgHiBlue).Add(color.Bold)
 	}
 	d.Printf("%v", file.Name())
+}
+
+func formatFileSize(fileSize int64) (formattedFileSize int64) {
+	var factor float64 = 1
+	var factorBase float64 = 1024
+
+	if options.Kibibytes {
+		factorBase = 1000
+	}
+
+	factorBase = factorBase * 0.001
+	switch options.BlockSize {
+	case "K":
+		factor = 0.001 * factorBase
+	case "M":
+		factor = 0.000001 * factorBase
+	case "G":
+		factor = 0.000000001 * factorBase
+	case "T":
+		factor = 0.000000000001 * factorBase
+	}
+
+	formattedFileSize = int64(math.Round(float64(fileSize) * factor))
+	if formattedFileSize < 1 {
+		formattedFileSize = 1
+	}
+	return
 }
