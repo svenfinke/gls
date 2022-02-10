@@ -3,11 +3,8 @@ package print
 import (
 	"fmt"
 	"io/fs"
-	"os"
 	"os/user"
-	"path/filepath"
 	"strconv"
-	"strings"
 	"syscall"
 
 	"github.com/fatih/color"
@@ -15,39 +12,10 @@ import (
 	"github.com/svenfinke/gls/lib/types"
 )
 
-func Print(options types.Options) {
-	var files []os.DirEntry
-	var sizeMaxLength int = 0
-
-	filepath.WalkDir(options.Args.File, func(p string, info os.DirEntry, err error) error {
-		if strings.Count(options.Args.File, string(os.PathSeparator))+1 <= strings.Count(p, string(os.PathSeparator)) {
-			return nil
-		}
-
-		if !options.All && info.Name() == "." {
-			return nil
-		}
-
-		if (!options.All && !options.AlmostAll) && strings.HasPrefix(info.Name(), ".") {
-			return nil
-		}
-
-		if options.IgnoreBackups && strings.HasSuffix(info.Name(), "~") {
-			return nil
-		}
-
-		fileInfo, _ := info.Info()
-		fileSize := format.FormatFileSize(options, fileInfo.Size())
-		if sizeMaxLength < len(strconv.FormatInt(fileSize, 10)) {
-			sizeMaxLength = len(strconv.FormatInt(fileSize, 10))
-		}
-		files = append(files, info)
-		return err
-	})
-
+func Print(options types.Options, files []fs.DirEntry) {
 	for _, info := range files {
 		if options.List {
-			printList(options, info, sizeMaxLength)
+			printList(options, info)
 		} else {
 			printDefault(options, info)
 		}
@@ -60,7 +28,7 @@ func printDefault(options types.Options, file fs.DirEntry) {
 	fmt.Print("  ")
 }
 
-func printList(options types.Options, file fs.DirEntry, fileSizeMaxLength int) {
+func printList(options types.Options, file fs.DirEntry) {
 	info, _ := file.Info()
 	sep := " "
 	stat := info.Sys().(*syscall.Stat_t)
@@ -81,7 +49,7 @@ func printList(options types.Options, file fs.DirEntry, fileSizeMaxLength int) {
 		fmt.Printf("%v%s", fileUser.Username, sep) // "Author" - also seems faked in ls. It changes with the owner
 	}
 	// Generate Format String with maximal found length of size
-	fmt.Printf(fmt.Sprintf("%%%vd%%s%%s", fileSizeMaxLength), fileSize, options.BlockSize, sep)
+	fmt.Printf(fmt.Sprintf("%%%vd%%s%%s", options.SizeMaxLength), fileSize, options.BlockSize, sep)
 	fmt.Printf("%s%s", info.ModTime().Format("Jan"), sep)
 	fmt.Printf("%s%s", info.ModTime().Format("02"), sep)
 	fmt.Printf("%s%s", info.ModTime().Format("15:04"), sep)

@@ -4,7 +4,7 @@ import (
 	"os"
 
 	"github.com/jessevdk/go-flags"
-	"github.com/svenfinke/gls/lib/print"
+	"github.com/svenfinke/gls/lib/dirwalk"
 	"github.com/svenfinke/gls/lib/types"
 )
 
@@ -30,5 +30,5 @@ func main() {
 		options.Args.File = "."
 	}
 
-	print.Print(options)
+	dirwalk.Walk(options)
 }

@@ -24,6 +24,7 @@ type Options struct {
 	// 							 modification of file status information);
 	// 							 with -l: show ctime and sort by name;
 	// 							 otherwise: sort by ctime, newest first
+	Sort bool `short:"c" description:"with -lt: sort by, and show, ctime (time of last modification of file status information); with -l: show ctime and sort by name; otherwise: sort by ctime, newest first"`
 	// -C                         list entries by columns
 	// 	--color[=WHEN]         colorize the output; WHEN can be 'always' (default
 	// 							 if omitted), 'auto', or 'never'; more info below
@@ -103,4 +104,6 @@ type Options struct {
 	// -Z, --context              print any security context of each file
 	// -1                         list one file per line.  Avoid '\n' with -q or -b
 	Version bool `long:"version" description:"output version information and exit"`
+
+	SizeMaxLength int
 }
